@@ -318,3 +318,4 @@ For development, use:
 Built with ❤️ using React, Node.js, and face-api.js
 
 # college_management_system
+# college_management_system
