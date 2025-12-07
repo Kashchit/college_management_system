@@ -5,9 +5,14 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 export const auth = {
   setSession: (token, user) => {
     if (token) localStorage.setItem('token', token);
+    if (user) localStorage.setItem('user', JSON.stringify(user));
     if (user?.role) localStorage.setItem('role', user.role);
   },
-  clear: () => { localStorage.removeItem('token'); localStorage.removeItem('role'); }
+  clear: () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('role');
+    localStorage.removeItem('user');
+  }
 };
 
 const api = axios.create({

@@ -1,6 +1,8 @@
 const express = require('express');
 const Student = require('../models/Student');
 const auth = require('../middleware/auth');
+const { requireRole } = require('../middleware/roles');
+const { pool } = require('../config/db');
 const router = express.Router();
 
 // Enroll new student with face embedding
@@ -48,6 +50,37 @@ router.get('/with-embeddings', auth, async (req, res) => {
     const students = await Student.findAllWithEmbeddings();
     res.json(students);
   } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Get student by student_id
+router.get('/:studentId', auth, async (req, res) => {
+  try {
+    const student = await Student.findByStudentId(req.params.studentId);
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    // Don't send embedding in response for privacy
+    const { embedding, ...studentData } = student;
+    res.json(studentData);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Delete student by student_id
+router.delete('/:studentId', auth, requireRole('TEACHER'), async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM students WHERE student_id = $1 RETURNING *', [req.params.studentId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    res.json({ message: 'Student face data deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting student:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

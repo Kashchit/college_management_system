@@ -13,9 +13,9 @@ if (connectionString.includes('neon.tech') && !connectionString.includes('sslmod
 
 const pool = new Pool({
   connectionString: connectionString,
-  ssl: connectionString?.includes('neon.tech') ? { 
+  ssl: connectionString?.includes('neon.tech') ? {
     rejectUnauthorized: false,
-    require: true 
+    require: true
   } : false,
   connectionTimeoutMillis: 5000,
   idleTimeoutMillis: 30000,
@@ -50,6 +50,9 @@ const initDB = async () => {
       )
     `);
 
+    // Drop and recreate attendance table to ensure schema is up to date
+    await pool.query('DROP TABLE IF EXISTS attendance CASCADE');
+
     // Create attendance table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS attendance (
@@ -58,8 +61,97 @@ const initDB = async () => {
         name VARCHAR(255) NOT NULL,
         subject VARCHAR(255) DEFAULT 'General',
         timestamp TIMESTAMP DEFAULT NOW(),
-        confidence REAL NOT NULL
+        confidence REAL NOT NULL,
+        method VARCHAR(20) DEFAULT 'face_recognition',
+        marked_by UUID REFERENCES users(id)
       )
+    `);
+
+    // Create otp_store table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS otp_store (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email VARCHAR(255) NOT NULL,
+        otp VARCHAR(6) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_otp_email ON otp_store(email);
+    `);
+
+    // Create assignments table
+    // DROP to ensure schema update during dev
+    await pool.query('DROP TABLE IF EXISTS submissions CASCADE');
+    await pool.query('DROP TABLE IF EXISTS assignments CASCADE');
+    await pool.query('DROP TABLE IF EXISTS notifications CASCADE');
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS assignments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        subject_id UUID REFERENCES subjects(id) ON DELETE CASCADE,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        due_date TIMESTAMP WITH TIME ZONE,
+        created_by UUID REFERENCES users(id),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Create submissions table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS submissions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        assignment_id UUID REFERENCES assignments(id) ON DELETE CASCADE,
+        student_id UUID REFERENCES users(id),
+        content TEXT,
+        grade INTEGER,
+        feedback TEXT,
+        file_path VARCHAR(500),
+        file_name VARCHAR(255),
+        submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(assignment_id, student_id)
+      );
+    `);
+
+    // Create notifications table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        message TEXT NOT NULL,
+        type VARCHAR(50) DEFAULT 'info',
+        read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Create announcements table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS announcements (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        title VARCHAR(255) NOT NULL,
+        content TEXT NOT NULL,
+        created_by UUID REFERENCES users(id) ON DELETE CASCADE,
+        target_audience VARCHAR(20) DEFAULT 'ALL',
+        subject_id UUID REFERENCES subjects(id) ON DELETE CASCADE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Create leave_requests table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS leave_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        student_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        subject_id UUID REFERENCES subjects(id) ON DELETE CASCADE,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        reason TEXT,
+        status VARCHAR(20) DEFAULT 'pending',
+        reviewed_by UUID REFERENCES users(id),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
     `);
 
     // Create indexes

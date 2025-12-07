@@ -13,6 +13,9 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Serve static files from uploads directory
+app.use('/uploads', express.static('uploads'));
+
 // Health check
 app.get('/api/health', async (req, res) => {
   try {
@@ -24,11 +27,25 @@ app.get('/api/health', async (req, res) => {
 });
 
 // Routes
+const authRoutes = require('./routes/auth');
+const subjectRoutes = require('./routes/subjects');
+const assignmentRoutes = require('./routes/assignments');
+const notificationRoutes = require('./routes/notifications');
+const chatRoutes = require('./routes/chat');
+const announcementRoutes = require('./routes/announcements');
+const leaveRequestRoutes = require('./routes/leaveRequests');
+
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/students', require('./routes/students'));
 app.use('/api/attendance', require('./routes/attendance'));
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/subjects', require('./routes/subjects'));
+app.use('/api/auth', authRoutes);
+app.use('/api/subjects', subjectRoutes);
+app.use('/api/assignments', assignmentRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/announcements', announcementRoutes);
+app.use('/api/leave-requests', leaveRequestRoutes);
+app.use('/api/users', require('./routes/users'));
 
 // Handle 404 - must be last
 app.use((req, res) => {
@@ -54,7 +71,7 @@ const connectWithRetry = async (maxRetries = 3, delay = 2000) => {
 // Initialize database and start server
 const startServer = async () => {
   let dbConnected = false;
-  
+
   // Try to connect to database (non-blocking)
   connectWithRetry()
     .then(async () => {
@@ -75,10 +92,10 @@ const startServer = async () => {
       console.error('   3. Create tables manually: Run backend/scripts/initTables.sql in Neon SQL editor');
       console.error('   4. The server will start, but API calls will fail until DB connects\n');
     });
-  
+
   // Start server immediately (don't wait for DB)
   const PORT = process.env.PORT || 5001;
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📡 API available at http://localhost:${PORT}/api`);
     if (!dbConnected) {
@@ -86,6 +103,10 @@ const startServer = async () => {
       console.log('   Server will auto-connect when database becomes available\n');
     }
   });
+
+  // Initialize Socket.io
+  const { initSocket } = require('./socket/socketHandler');
+  initSocket(server);
 };
 
 startServer();
