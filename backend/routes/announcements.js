@@ -4,7 +4,7 @@ const Announcement = require('../models/Announcement');
 const { pool } = require('../config/db');
 const auth = require('../middleware/auth');
 const { requireRole } = require('../middleware/roles');
-const { sendAssignmentNotification } = require('../utils/emailService'); // Reuse email service
+const { sendAnnouncementEmail } = require('../utils/emailService');
 
 // Create Announcement (Teacher only)
 router.post('/', auth, requireRole('TEACHER'), async (req, res) => {
@@ -16,7 +16,7 @@ router.post('/', auth, requireRole('TEACHER'), async (req, res) => {
             content,
             createdBy: req.user.id,
             targetAudience, // 'ALL' or 'SUBJECT'
-            subjectId
+            subjectId: subjectId || null
         });
 
         // Send Emails
@@ -37,14 +37,13 @@ router.post('/', auth, requireRole('TEACHER'), async (req, res) => {
 
         // Send emails in background
         const emailPromises = recipients.map(student =>
-            sendAssignmentNotification(student.email, student.name, {
-                title: `Announcement: ${title}`,
-                description: content,
-                dueDate: 'N/A',
-                subjectName: 'General Announcement'
+            sendAnnouncementEmail(student.email, student.name, {
+                title,
+                content,
+                subjectName: subjectId ? 'Specific Subject' : 'General'
             }).catch(err => {
                 console.error(`Failed to send email to ${student.email}:`, err.message);
-                return null; // Don't fail the whole operation if one email fails
+                return null;
             })
         );
 

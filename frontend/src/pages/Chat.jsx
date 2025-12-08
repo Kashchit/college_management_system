@@ -29,10 +29,28 @@ const Chat = () => {
 
         setSocket(newSocket);
 
+        // Fetch history
+        const fetchHistory = async () => {
+            try {
+                const { data } = await api.get(`/chat/history/${room}`);
+                setMessages(data);
+            } catch (error) {
+                console.error('Failed to fetch chat history', error);
+                Toast({ message: 'Failed to load chat history', type: 'error' });
+            }
+        };
+
+        fetchHistory();
+
         newSocket.emit('join_room', room);
 
         newSocket.on('receive_message', (data) => {
-            setMessages((prev) => [...prev, data]);
+            setMessages((prev) => {
+                // Avoid duplicates if necessary, though simple append works for now
+                // Check if message with same ID exists (if DB returns IDs)
+                // For now, just append as real-time messages might not have IDs yet or we rely on order
+                return [...prev, data];
+            });
         });
 
         return () => newSocket.close();
@@ -126,8 +144,8 @@ const Chat = () => {
                             key={r}
                             onClick={() => setRoom(r)}
                             className={`w-full text-left px-4 py-3 rounded-xl transition-all ${room === r
-                                ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30'
-                                : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                                ? 'bg-primary text-primary-foreground shadow-lg'
+                                : 'text-muted-foreground hover:bg-secondary hover:text-secondary-foreground'
                                 }`}
                         >
                             # {r}
@@ -139,7 +157,8 @@ const Chat = () => {
             {/* Chat Area */}
             <div className="flex-1 glass-card rounded-2xl flex flex-col overflow-hidden bg-card border border-border">
                 {/* Header */}
-                <div className="p-4 border-b border-border bg-secondary/30 backdrop-blur-md flex justify-between items-center">
+                {/* Header */}
+                <div className="p-4 border-b border-border bg-card/30 backdrop-blur-md flex justify-between items-center">
                     <div>
                         <h3 className="text-lg font-bold text-foreground"># {room}</h3>
                         <p className="text-xs text-muted-foreground">Real-time discussion</p>
@@ -176,8 +195,8 @@ const Chat = () => {
                                         </div>
                                         <div
                                             className={`px-4 py-2 rounded-2xl break-words shadow-sm ${isMe
-                                                ? 'bg-indigo-600 text-white rounded-tr-none'
-                                                : 'bg-white dark:bg-gray-800 text-foreground border border-border rounded-tl-none'
+                                                ? 'bg-primary text-primary-foreground rounded-tr-none'
+                                                : 'bg-secondary text-secondary-foreground border border-border rounded-tl-none'
                                                 }`}
                                         >
                                             {renderMessageContent(msg)}
@@ -225,7 +244,7 @@ const Chat = () => {
                         <button
                             type="submit"
                             disabled={(!message.trim() && !file) || uploading}
-                            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white p-3 rounded-xl transition-colors shadow-lg shadow-indigo-500/20"
+                            className="bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground p-3 rounded-xl transition-colors shadow-lg"
                         >
                             <Send size={20} />
                         </button>

@@ -107,4 +107,39 @@ const sendPasswordResetEmail = async (email, resetLink) => {
   }
 };
 
-module.exports = { sendOTP, sendAssignmentNotification, sendPasswordResetEmail };
+const sendAnnouncementEmail = async (email, studentName, announcement) => {
+  try {
+    const { title, content, subjectName } = announcement;
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: `New Announcement: ${title} - UniManage`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <h2 style="color: #f97316; text-align: center;">📢 New Announcement</h2>
+          <p style="font-size: 16px; color: #333;">Hello ${studentName},</p>
+          <p style="font-size: 16px; color: #333;">A new announcement has been posted in <strong>${subjectName || 'General'}</strong>:</p>
+          
+          <div style="background-color: #fff7ed; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f97316;">
+            <h3 style="color: #9a3412; margin-top: 0;">${title}</h3>
+            <p style="color: #374151; margin: 10px 0; white-space: pre-wrap;">${content}</p>
+          </div>
+          
+          <p style="font-size: 14px; color: #666;">Please log in to UniManage to view more details.</p>
+          <div style="text-align: center; margin-top: 30px;">
+            <a href="http://localhost:5173/dashboard" style="background-color: #f97316; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View Dashboard</a>
+          </div>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Announcement email sent to ${email}`);
+    return true;
+  } catch (error) {
+    console.error(`Error sending announcement email to ${email}:`, error);
+    return false;
+  }
+};
+
+module.exports = { sendOTP, sendAssignmentNotification, sendPasswordResetEmail, sendAnnouncementEmail };

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { io } from 'socket.io-client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, BookOpen, FileText, TrendingUp, Calendar, Award, RefreshCw, Megaphone, Plus, X, CheckCircle, XCircle, UserCheck } from 'lucide-react';
 import api from '../utils/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#10b981'];
+const ENDPOINT = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5001';
 
 const TeacherDashboard = () => {
     const [stats, setStats] = useState({
@@ -40,42 +42,77 @@ const TeacherDashboard = () => {
         const handleFocus = () => loadDashboardData();
         window.addEventListener('focus', handleFocus);
 
-        return () => window.removeEventListener('focus', handleFocus);
+        // Socket connection
+        const socket = io(ENDPOINT, {
+            withCredentials: true,
+        });
+
+        socket.on('attendance_update', () => {
+            loadDashboardData();
+        });
+
+        socket.on('leave_request_update', () => {
+            loadDashboardData();
+        });
+
+        return () => {
+            window.removeEventListener('focus', handleFocus);
+            socket.close();
+        };
     }, []);
 
     const loadDashboardData = async () => {
         try {
             setLoading(true);
-            const [attendanceRes, subjectsRes, assignmentsRes, announcementsRes, leaveRes] = await Promise.all([
+            const results = await Promise.allSettled([
                 api.get('/attendance'),
                 api.get('/subjects'),
                 api.get('/assignments?subjectId=all'),
                 api.get('/announcements'),
-                api.get('/leave-requests/pending')
+                api.get('/leave-requests/pending'),
+                api.get('/users?role=STUDENT')
             ]);
 
-            setSubjects(subjectsRes.data);
-            setAnnouncements(announcementsRes.data || []);
-            setLeaveRequests(leaveRes.data || []);
-            if (subjectsRes.data[0]?.id) {
-                setSelectedSubjectForAttendance(subjectsRes.data[0].id);
+            const [attendanceRes, subjectsRes, assignmentsRes, announcementsRes, leaveRes, studentsRes] = results;
+
+            // Helper to get data or default
+            const getData = (res, defaultVal = []) => (res.status === 'fulfilled' ? res.value.data : defaultVal);
+
+            if (attendanceRes.status === 'rejected') console.error('Attendance fetch failed:', attendanceRes.reason);
+            if (subjectsRes.status === 'rejected') console.error('Subjects fetch failed:', subjectsRes.reason);
+            if (assignmentsRes.status === 'rejected') console.error('Assignments fetch failed:', assignmentsRes.reason);
+            if (announcementsRes.status === 'rejected') console.error('Announcements fetch failed:', announcementsRes.reason);
+            if (leaveRes.status === 'rejected') console.error('Leave requests fetch failed:', leaveRes.reason);
+            if (studentsRes.status === 'rejected') console.error('Students fetch failed:', studentsRes.reason);
+
+            const subjectsData = getData(subjectsRes);
+            const attendanceData = getData(attendanceRes);
+            const studentsData = getData(studentsRes);
+            const assignmentsData = getData(assignmentsRes);
+
+            setSubjects(subjectsData);
+            setAnnouncements(getData(announcementsRes));
+            setLeaveRequests(getData(leaveRes));
+
+            if (subjectsData[0]?.id) {
+                setSelectedSubjectForAttendance(subjectsData[0].id);
             }
 
             // Calculate stats
-            const uniqueStudents = new Set(attendanceRes.data.map(a => a.student_id)).size;
-            const avgAttendance = attendanceRes.data.length > 0
-                ? ((attendanceRes.data.filter(a => a.confidence > 0.5).length / attendanceRes.data.length) * 100).toFixed(1)
+            const totalStudents = studentsData.length;
+            const avgAttendance = attendanceData.length > 0
+                ? ((attendanceData.filter(a => a.confidence > 0.5).length / attendanceData.length) * 100).toFixed(1)
                 : 0;
 
             setStats({
-                totalStudents: uniqueStudents,
-                totalSubjects: subjectsRes.data.length,
-                totalAssignments: assignmentsRes.data?.length || 0,
+                totalStudents: totalStudents,
+                totalSubjects: subjectsData.length,
+                totalAssignments: assignmentsData.length || 0,
                 avgAttendance
             });
 
             // Process attendance by date
-            const attendanceByDate = attendanceRes.data.reduce((acc, curr) => {
+            const attendanceByDate = attendanceData.reduce((acc, curr) => {
                 const date = new Date(curr.timestamp).toLocaleDateString();
                 acc[date] = (acc[date] || 0) + 1;
                 return acc;
@@ -89,7 +126,7 @@ const TeacherDashboard = () => {
 
             // Process subject enrollment
             setSubjectData(
-                subjectsRes.data.map(s => ({
+                subjectsData.map(s => ({
                     name: s.code,
                     students: s.enrolled_count || 0
                 }))
@@ -523,8 +560,8 @@ const TeacherDashboard = () => {
                                             <button
                                                 onClick={() => setAttendanceMarks({ ...attendanceMarks, [student.id]: 'present' })}
                                                 className={`px-4 py-2 rounded-lg transition-colors ${attendanceMarks[student.id] === 'present'
-                                                        ? 'bg-green-500 text-white'
-                                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                    ? 'bg-green-500 text-white'
+                                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                                                     }`}
                                             >
                                                 Present
@@ -532,8 +569,8 @@ const TeacherDashboard = () => {
                                             <button
                                                 onClick={() => setAttendanceMarks({ ...attendanceMarks, [student.id]: 'absent' })}
                                                 className={`px-4 py-2 rounded-lg transition-colors ${attendanceMarks[student.id] === 'absent'
-                                                        ? 'bg-red-500 text-white'
-                                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                    ? 'bg-red-500 text-white'
+                                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                                                     }`}
                                             >
                                                 Absent

@@ -32,6 +32,15 @@ const Assignments = () => {
         if (selectedSubject) {
             loadAssignments(selectedSubject);
         }
+
+        const handleFocus = () => {
+            if (selectedSubject) {
+                loadAssignments(selectedSubject);
+            }
+        };
+
+        window.addEventListener('focus', handleFocus);
+        return () => window.removeEventListener('focus', handleFocus);
     }, [selectedSubject]);
 
     const loadSubjects = async () => {

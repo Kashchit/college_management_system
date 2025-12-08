@@ -2,6 +2,7 @@ const express = require('express');
 const Attendance = require('../models/Attendance');
 const auth = require('../middleware/auth');
 const { requireRole } = require('../middleware/roles');
+const { getIo } = require('../socket/socketHandler');
 const router = express.Router();
 
 // Mark attendance (admin/teacher-controlled)
@@ -20,6 +21,15 @@ router.post('/', auth, async (req, res) => {
     }
 
     const attendance = await Attendance.create(studentId, name, subject, confidence);
+
+    // Emit real-time update
+    try {
+      const io = getIo();
+      io.emit('attendance_update', { studentId, subject, date: new Date() });
+    } catch (e) {
+      console.error('Socket emit error:', e);
+    }
+
     res.status(201).json({ message: 'Attendance marked successfully', attendance });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -43,6 +53,15 @@ router.post('/self', auth, async (req, res) => {
     }
 
     const attendance = await Attendance.create(effectiveStudentId, effectiveName, subject, confidence ?? 1);
+
+    // Emit real-time update
+    try {
+      const io = getIo();
+      io.emit('attendance_update', { studentId: effectiveStudentId, subject, date: new Date() });
+    } catch (e) {
+      console.error('Socket emit error:', e);
+    }
+
     res.status(201).json({ message: 'Attendance marked successfully', attendance });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -114,6 +133,14 @@ router.post('/manual', auth, async (req, res) => {
       message: `Attendance marked for ${markedAttendance.length} students`,
       attendance: markedAttendance
     });
+
+    // Emit real-time update
+    try {
+      const io = getIo();
+      io.emit('attendance_update', { subjectId, date: date || new Date(), count: markedAttendance.length });
+    } catch (e) {
+      console.error('Socket emit error:', e);
+    }
   } catch (error) {
     console.error('Manual attendance error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -171,6 +198,14 @@ router.post('/mark-class', auth, requireRole('TEACHER'), async (req, res) => {
       message: `Attendance marked for ${markedAttendance.length} students`,
       attendance: markedAttendance
     });
+
+    // Emit real-time update
+    try {
+      const io = getIo();
+      io.emit('attendance_update', { subjectId, date: date || new Date(), count: markedAttendance.length });
+    } catch (e) {
+      console.error('Socket emit error:', e);
+    }
   } catch (error) {
     console.error('Bulk attendance error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });

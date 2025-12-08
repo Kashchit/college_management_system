@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { io } from 'socket.io-client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, CheckCircle, Clock, FileText, TrendingUp, BookOpen, RefreshCw, Plus, X, Send } from 'lucide-react';
 import api from '../utils/api';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const COLORS = ['#10b981', '#f43f5e'];
+const ENDPOINT = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5001';
 
 const StudentDashboard = () => {
     const [stats, setStats] = useState({
@@ -42,28 +44,58 @@ const StudentDashboard = () => {
         };
         window.addEventListener('focus', handleFocus);
 
-        return () => window.removeEventListener('focus', handleFocus);
+        // Socket connection
+        const socket = io(ENDPOINT, {
+            withCredentials: true,
+        });
+
+        socket.on('attendance_update', () => {
+            if (storedUser.id) loadDashboardData(storedUser.id);
+        });
+
+        socket.on('leave_request_update', () => {
+            if (storedUser.id) loadDashboardData(storedUser.id);
+        });
+
+        return () => {
+            window.removeEventListener('focus', handleFocus);
+            socket.close();
+        };
     }, []);
 
     const loadDashboardData = async (userId) => {
         try {
             setLoading(true);
-            const [attendanceRes, subjectsRes, leaveRes] = await Promise.all([
+            const results = await Promise.allSettled([
                 api.get(`/attendance?studentId=${userId}`),
                 api.get('/subjects'),
                 api.get('/leave-requests/my-requests')
             ]);
 
-            setSubjects(subjectsRes.data);
-            setLeaveRequests(leaveRes.data || []);
-            if (subjectsRes.data[0]?.id) {
-                setNewLeave(prev => ({ ...prev, subjectId: subjectsRes.data[0].id }));
+            const [attendanceRes, subjectsRes, leaveRes] = results;
+
+            // Helper to get data or default
+            const getData = (res, defaultVal = []) => (res.status === 'fulfilled' ? res.value.data : defaultVal);
+
+            if (attendanceRes.status === 'rejected') console.error('Attendance fetch failed:', attendanceRes.reason);
+            if (subjectsRes.status === 'rejected') console.error('Subjects fetch failed:', subjectsRes.reason);
+            if (leaveRes.status === 'rejected') console.error('Leave requests fetch failed:', leaveRes.reason);
+
+            const subjectsData = getData(subjectsRes);
+            const attendanceData = getData(attendanceRes);
+            const leaveData = getData(leaveRes);
+
+            setSubjects(subjectsData);
+            setLeaveRequests(leaveData);
+
+            if (subjectsData[0]?.id) {
+                setNewLeave(prev => ({ ...prev, subjectId: subjectsData[0].id }));
             }
 
             // Calculate attendance stats
-            const totalAttendance = attendanceRes.data.length;
+            const totalAttendance = attendanceData.length;
             const attendanceRate = totalAttendance > 0
-                ? ((attendanceRes.data.filter(a => a.confidence > 0.5).length / totalAttendance) * 100).toFixed(1)
+                ? ((attendanceData.filter(a => a.confidence > 0.5).length / totalAttendance) * 100).toFixed(1)
                 : 0;
 
             setStats(prev => ({
@@ -73,7 +105,7 @@ const StudentDashboard = () => {
             }));
 
             // Process attendance by date (last 7 days)
-            const attendanceByDate = attendanceRes.data.reduce((acc, curr) => {
+            const attendanceByDate = attendanceData.reduce((acc, curr) => {
                 const date = new Date(curr.timestamp).toLocaleDateString();
                 acc[date] = (acc[date] || 0) + 1;
                 return acc;
@@ -86,7 +118,7 @@ const StudentDashboard = () => {
             );
 
             // Load assignments for enrolled subjects
-            const assignmentPromises = subjectsRes.data.map(subject =>
+            const assignmentPromises = subjectsData.map(subject =>
                 api.get(`/assignments?subjectId=${subject.id}`).catch(() => ({ data: [] }))
             );
 
@@ -294,8 +326,8 @@ const StudentDashboard = () => {
                                         </p>
                                     </div>
                                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${leave.status === 'approved' ? 'bg-green-100 text-green-700' :
-                                            leave.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                                                'bg-yellow-100 text-yellow-700'
+                                        leave.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                                            'bg-yellow-100 text-yellow-700'
                                         }`}>
                                         {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
                                     </span>

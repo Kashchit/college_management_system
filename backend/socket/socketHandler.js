@@ -1,4 +1,6 @@
+
 const socketIo = require('socket.io');
+const Message = require('../models/Message');
 
 let io;
 
@@ -21,17 +23,24 @@ const initSocket = (server) => {
 
         socket.on('join_room', (room) => {
             socket.join(room);
-            console.log(`User ${socket.id} joined room: ${room}`);
+            console.log(`User ${socket.id} joined room: ${room} `);
         });
 
         socket.on('join_user_room', (userId) => {
-            socket.join(`user_${userId}`);
-            console.log(`User ${socket.id} joined user room: user_${userId}`);
+            socket.join(`user_${userId} `);
+            console.log(`User ${socket.id} joined user room: user_${userId} `);
         });
 
-        socket.on('send_message', (data) => {
-            // data: { room, author, message, time }
-            io.to(data.room).emit('receive_message', data);
+        socket.on('send_message', async (data) => {
+            // data: { room, author, message, file, time }
+            try {
+                // Save to DB
+                await Message.create(data);
+                // Broadcast to room
+                io.to(data.room).emit('receive_message', data);
+            } catch (error) {
+                console.error('Error saving message:', error);
+            }
         });
 
         socket.on('disconnect', () => {
@@ -51,7 +60,7 @@ const getIo = () => {
 
 const sendNotification = (userId, notification) => {
     if (io) {
-        io.to(`user_${userId}`).emit('receive_notification', notification);
+        io.to(`user_${userId} `).emit('receive_notification', notification);
     }
 };
 

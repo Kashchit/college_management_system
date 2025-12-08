@@ -28,9 +28,9 @@ class LeaveRequest {
              FROM leave_requests lr
              JOIN users u ON lr.student_id = u.id
              JOIN subjects s ON lr.subject_id = s.id
-             WHERE s.created_by = $1 AND lr.status = 'pending'
+             WHERE lr.status = 'pending'
              ORDER BY lr.created_at DESC`,
-            [teacherId]
+            []
         );
         return result.rows;
     }

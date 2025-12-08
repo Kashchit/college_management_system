@@ -89,10 +89,19 @@ const Layout = ({ children }) => {
     const unreadCount = notifications.filter(n => !n.read).length;
 
     useEffect(() => {
+        const storedTheme = localStorage.getItem('theme');
+        if (storedTheme === 'dark') {
+            setIsDark(true);
+        }
+    }, []);
+
+    useEffect(() => {
         if (isDark) {
             document.documentElement.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
         } else {
             document.documentElement.classList.remove('dark');
+            localStorage.setItem('theme', 'light');
         }
     }, [isDark]);
 
@@ -104,13 +113,13 @@ const Layout = ({ children }) => {
 
     const menuItems = [
         { icon: LayoutDashboard, label: 'Dashboard', to: '/' },
-        { icon: Users, label: 'Students', to: '/students' },
+        { icon: Users, label: 'Students', to: '/students', roles: ['TEACHER', 'ADMIN'] },
         { icon: CalendarCheck, label: 'Attendance', to: '/attendance' },
         { icon: BookOpen, label: 'Subjects', to: '/subjects' },
         { icon: FileText, label: 'Assignments', to: '/assignments' },
         { icon: MessageSquare, label: 'Chat', to: '/chat' },
         { icon: User, label: 'Profile', to: '/profile' },
-    ];
+    ].filter(item => !item.roles || item.roles.includes(user.role));
 
     return (
         <div className="min-h-screen flex overflow-hidden bg-background text-foreground transition-colors duration-300">

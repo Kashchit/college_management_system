@@ -1,43 +1,38 @@
-require('dotenv').config();
+require('dotenv').config({ path: '../.env' });
 const { pool } = require('../config/db');
 
-async function clearDatabase() {
+const clearDatabase = async () => {
     try {
-        console.log('🧹 Starting database cleanup...');
+        console.log('Starting database cleanup...');
 
-        // Disable foreign key checks temporarily (if needed, but TRUNCATE CASCADE handles it)
-        // In PostgreSQL, TRUNCATE with CASCADE is sufficient.
+        // Get all table names in the public schema
+        const result = await pool.query(`
+      SELECT tablename 
+      FROM pg_tables 
+      WHERE schemaname = 'public'
+    `);
 
-        console.log('Clearing all tables...');
+        const tables = result.rows.map(row => row.tablename);
 
-        // List of tables to clear
-        // Order matters if not using CASCADE, but CASCADE makes it easier.
-        // We want to keep the admin user if possible, but the request said "remove all fake teacher and student".
-        // Usually, we might want to keep the structure but remove data.
+        if (tables.length === 0) {
+            console.log('No tables found to clear.');
+            process.exit(0);
+        }
 
-        await pool.query(`
-            TRUNCATE TABLE 
-                submissions, 
-                assignments, 
-                attendance, 
-                subject_enrollments, 
-                subjects, 
-                notifications,
-                otp_store,
-                users
-            CASCADE;
-        `);
+        console.log(`Found ${tables.length} tables: ${tables.join(', ')}`);
 
-        console.log('✅ All tables cleared successfully.');
+        // Truncate all tables with CASCADE to handle foreign key constraints
+        for (const table of tables) {
+            console.log(`Clearing table: ${table}`);
+            await pool.query(`TRUNCATE TABLE "${table}" CASCADE`);
+        }
 
-        // Optional: Re-seed an admin if needed, but the user just said "clear the db".
-        // I will just clear it for now. If they need an admin, they can run createAdmin.js
-
+        console.log('All tables cleared successfully.');
+        process.exit(0);
     } catch (error) {
-        console.error('❌ Error clearing database:', error);
-    } finally {
-        await pool.end();
+        console.error('Error clearing database:', error);
+        process.exit(1);
     }
-}
+};
 
 clearDatabase();

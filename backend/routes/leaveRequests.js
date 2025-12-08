@@ -3,6 +3,7 @@ const router = express.Router();
 const LeaveRequest = require('../models/LeaveRequest');
 const auth = require('../middleware/auth');
 const { requireRole } = require('../middleware/roles');
+const { getIo } = require('../socket/socketHandler');
 
 // Create leave request (Student only)
 router.post('/', auth, requireRole('STUDENT'), async (req, res) => {
@@ -16,6 +17,14 @@ router.post('/', auth, requireRole('STUDENT'), async (req, res) => {
             endDate,
             reason
         });
+
+        // Emit real-time update
+        try {
+            const io = getIo();
+            io.emit('leave_request_update', { type: 'new', request: leaveRequest });
+        } catch (e) {
+            console.error('Socket emit error:', e);
+        }
 
         res.status(201).json(leaveRequest);
     } catch (error) {
@@ -48,6 +57,14 @@ router.get('/pending', auth, requireRole('TEACHER'), async (req, res) => {
 router.put('/:id/approve', auth, requireRole('TEACHER'), async (req, res) => {
     try {
         const leaveRequest = await LeaveRequest.updateStatus(req.params.id, 'approved', req.user.id);
+        // Emit real-time update
+        try {
+            const io = getIo();
+            io.emit('leave_request_update', { type: 'update', request: leaveRequest });
+        } catch (e) {
+            console.error('Socket emit error:', e);
+        }
+
         res.json(leaveRequest);
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -58,6 +75,14 @@ router.put('/:id/approve', auth, requireRole('TEACHER'), async (req, res) => {
 router.put('/:id/reject', auth, requireRole('TEACHER'), async (req, res) => {
     try {
         const leaveRequest = await LeaveRequest.updateStatus(req.params.id, 'rejected', req.user.id);
+        // Emit real-time update
+        try {
+            const io = getIo();
+            io.emit('leave_request_update', { type: 'update', request: leaveRequest });
+        } catch (e) {
+            console.error('Socket emit error:', e);
+        }
+
         res.json(leaveRequest);
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
