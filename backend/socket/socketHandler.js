@@ -8,8 +8,8 @@ const initSocket = (server) => {
             origin: [
                 'http://localhost:5173',
                 'http://localhost:3000',
-                'https://myclass-zdw7.onrender.com',
-                'https://ums-d15w.onrender.com'
+                'https://myclass-vfgw.onrender.com',
+                'https://ums-k0th.onrender.com'
             ],
             methods: ['GET', 'POST'],
             credentials: true
