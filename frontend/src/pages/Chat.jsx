@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import api from '../utils/api';
 import Toast from '../components/Toast';
 
-const ENDPOINT = 'http://localhost:5001';
+const ENDPOINT = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5001';
 
 const Chat = () => {
     const [socket, setSocket] = useState(null);

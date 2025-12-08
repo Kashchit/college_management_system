@@ -58,7 +58,8 @@ const Layout = ({ children }) => {
         if (storedUser.id) {
             fetchNotifications();
 
-            const socket = io('http://localhost:5001');
+            const socketEndpoint = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5001';
+            const socket = io(socketEndpoint);
             socket.emit('join_user_room', storedUser.id);
 
             socket.on('receive_notification', (notif) => {
